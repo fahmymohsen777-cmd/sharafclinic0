@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import { Star, Quote, ArrowLeft, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
@@ -115,29 +115,36 @@ function Lightbox({ src, onClose, onPrev, onNext }: { src: string; onClose: () =
 // Single Review Card
 function ReviewCard({ src, index, onClick }: { src: string; index: number; onClick: () => void }) {
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 40 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.5, delay: (index % 4) * 0.08, ease: "easeOut" }}
+      whileHover={{ y: -6, scale: 1.015 }}
       onClick={onClick}
       className="relative cursor-zoom-in group rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300 bg-white"
     >
       <Image
         src={`/reviews/${src}`}
         alt={`تقييم ${index + 1}`}
-        width={400}
-        height={500}
+        width={500}
+        height={600}
         className="w-full h-auto object-cover"
         loading="lazy"
-        quality={70}
-        sizes="(max-width: 768px) 50vw, 33vw"
       />
       {/* Hover overlay */}
       <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors duration-300 flex items-center justify-center">
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg">
-            <Quote className="w-4 h-4 text-primary" />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.5 }}
+          whileHover={{ opacity: 1, scale: 1 }}
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg">
+            <Quote className="w-5 h-5 text-primary" />
           </div>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -174,7 +181,9 @@ const stats = [
 
 export default function ReviewsPage() {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
-
+  const { scrollY } = useScroll();
+  const heroY = useTransform(scrollY, [0, 400], [0, -80]);
+  const heroOpacity = useTransform(scrollY, [0, 300], [1, 0]);
 
   const openLightbox = (idx: number) => setLightboxIdx(idx);
   const closeLightbox = () => setLightboxIdx(null);
@@ -190,7 +199,10 @@ export default function ReviewsPage() {
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-sky-200/30 rounded-full blur-3xl translate-y-1/2 -translate-x-1/3" />
 
-        <div className="container mx-auto px-6 max-w-5xl text-center relative">
+        <motion.div
+          style={{ y: heroY, opacity: heroOpacity }}
+          className="container mx-auto px-6 max-w-5xl text-center relative"
+        >
           {/* Badge */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -258,7 +270,7 @@ export default function ReviewsPage() {
               </div>
             ))}
           </motion.div>
-        </div>
+        </motion.div>
       </section>
 
       {/* SEPARATOR */}

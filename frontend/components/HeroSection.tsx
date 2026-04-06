@@ -68,14 +68,20 @@ export default function HeroSection() {
 
             {/* Trust indicators */}
             <div className="mt-10 flex items-center gap-6">
-              <div className="flex items-center gap-1">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-5 h-5 fill-amber-400 text-amber-400" />
+              <div className="flex -space-x-3">
+                {["/doctors/khaled.jpg", "/doctors/ahmed-mahran.jpg", "/doctors/ahmed-magdi.jpg"].map((src, i) => (
+                  <div key={i} className="w-10 h-10 rounded-full border-2 border-white overflow-hidden shadow-sm">
+                    <Image src={src} alt="doctor" width={40} height={40} className="object-cover w-full h-full" />
+                  </div>
                 ))}
               </div>
               <div>
-                <p className="font-bold text-slate-900 text-sm">+6000 مريض سعيد</p>
-                <p className="text-slate-500 text-xs">منذ عام 1998</p>
+                <div className="flex gap-0.5 mb-0.5">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                  ))}
+                </div>
+                <p className="text-sm text-slate-600 font-medium">+6000 مريض سعيد</p>
               </div>
             </div>
           </motion.div>

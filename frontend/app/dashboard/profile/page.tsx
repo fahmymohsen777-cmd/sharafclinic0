@@ -31,40 +31,26 @@ export default function ProfileSettings() {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const timeoutId = setTimeout(() => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
         window.location.href = "/auth/login";
-      }, 8000);
-
-      try {
-        const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (authError || !authData?.user) {
-          clearTimeout(timeoutId);
-          window.location.href = "/auth/login";
-          return;
-        }
-        const u = authData.user;
-        setUser(u);
-
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", u.id)
-          .single();
-          
-        if (profileData) {
-          setProfile(profileData);
-          setName(profileData.name || "");
-          setPhone(profileData.phone || "");
-          setAvatarUrl(profileData.avatar_url || null);
-        }
-        clearTimeout(timeoutId);
-      } catch (err) {
-        clearTimeout(timeoutId);
-        console.error(err);
-        window.location.href = "/auth/login";
-      } finally {
-        setLoading(false);
+        return;
       }
+      setUser(user);
+
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+        
+      if (profileData) {
+        setProfile(profileData);
+        setName(profileData.name || "");
+        setPhone(profileData.phone || "");
+        setAvatarUrl(profileData.avatar_url || null);
+      }
+      setLoading(false);
     };
 
     fetchProfile();

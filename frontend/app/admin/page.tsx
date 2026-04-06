@@ -56,28 +56,38 @@ const to12h = (t: string) => {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-/** WhatsApp direct action buttons — each opens WA web with pre-filled message */
-function WaButtons({ phone, name, date, time }: { phone: string; name: string; date: string; time: string }) {
-  const open = (msg: string) => {
+/** WhatsApp template dropdown button */
+function WaDropdown({ phone, name, date, time }: { phone: string; name: string; date: string; time: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+  const send = (msg: string) => {
     const cleaned = phone.replace(/\D/g, "");
-    const num = cleaned.startsWith("2") ? cleaned : `2${cleaned}`;
-    window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, "_blank");
+    window.open(`https://wa.me/${cleaned}?text=${encodeURIComponent(msg)}`, "_blank");
+    setOpen(false);
   };
-  const templates = WA_TEMPLATES(name, date, time);
-  const colors = [
-    "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200",
-    "bg-sky-50 text-sky-700 hover:bg-sky-100 border-sky-200",
-    "bg-red-50 text-red-600 hover:bg-red-100 border-red-200",
-  ];
-  const icons = ["✅", "⏰", "❌"];
   return (
-    <div className="flex items-center gap-1">
-      {templates.map((t, i) => (
-        <button key={t.label} onClick={() => open(t.msg)} title={t.label}
-          className={`px-2 py-1.5 rounded-lg border text-xs font-bold transition-all ${colors[i]}`}>
-          {icons[i]}
-        </button>
-      ))}
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen(!open)} className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors" title="واتساب">
+        <MessageCircle className="w-4 h-4" />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+            className="absolute left-0 top-10 z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 w-56 space-y-1">
+            {WA_TEMPLATES(name, date, time).map((t) => (
+              <button key={t.label} onClick={() => send(t.msg)}
+                className="w-full text-right px-3 py-2.5 text-xs font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-colors">
+                {t.label}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -640,7 +650,7 @@ export default function AdminDashboard() {
                           <div className="flex items-center justify-center gap-2">
                             {b.phone && (
                               <>
-                                <WaButtons phone={b.phone} name={b.name} date={new Date(b.date).toLocaleDateString("en-GB")} time={to12h(b.time)} />
+                                <WaDropdown phone={b.phone} name={b.name} date={new Date(b.date).toLocaleDateString("en-GB")} time={to12h(b.time)} />
                                 <a href={`tel:${b.phone}`} className="p-2 bg-sky-50 text-sky-600 hover:bg-sky-100 rounded-lg transition-colors" title="اتصل">
                                   <Phone className="w-4 h-4" />
                                 </a>
@@ -706,7 +716,7 @@ export default function AdminDashboard() {
                           <div className="flex items-center justify-center gap-2">
                             {client.phone && (
                               <>
-                                <WaButtons phone={client.phone} name={client.name || ""} date="—" time="—" />
+                                <WaDropdown phone={client.phone} name={client.name || ""} date="—" time="—" />
                                 <a href={`tel:${client.phone}`} className="p-2 bg-sky-50 text-sky-600 hover:bg-sky-100 rounded-lg transition-colors">
                                   <Phone className="w-4 h-4" />
                                 </a>

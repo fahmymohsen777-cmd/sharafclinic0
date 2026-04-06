@@ -14,19 +14,12 @@ export default function UserDashboard() {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      // Hard timeout — if anything hangs for 8 seconds, redirect to login
-      const timeoutId = setTimeout(() => {
-        window.location.href = "/auth/login";
-      }, 8000);
-
       try {
-        const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (authError || !authData?.user) {
-          clearTimeout(timeoutId);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
           window.location.href = "/auth/login";
           return;
         }
-        const user = authData.user;
 
         // Fetch User Profile
         const { data: profileData } = await supabase
@@ -37,7 +30,6 @@ export default function UserDashboard() {
         
         if (profileData) {
           if (profileData.role === 'admin') {
-            clearTimeout(timeoutId);
             window.location.href = "/admin";
             return;
           }
@@ -53,11 +45,8 @@ export default function UserDashboard() {
           .order("time", { ascending: true });
         
         if (bookingData) setBookings(bookingData);
-        clearTimeout(timeoutId);
       } catch (error) {
-        clearTimeout(timeoutId);
         console.error(error);
-        window.location.href = "/auth/login";
       } finally {
         setLoading(false);
       }
