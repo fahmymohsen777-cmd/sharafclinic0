@@ -40,41 +40,67 @@ export default function BookAppointment() {
   useEffect(() => {
     if (!date) return;
     
+    const DEFAULT_SLOTS = ['18:00','18:30','19:00','19:30','20:00','20:30','21:00','21:30','22:00','22:30'];
+
     const fetchAvailability = async () => {
       setLoading(true);
       setError("");
-      try {
-        const dateString = getLocalDateString(date);
-        
-        // 1. Get settings
-        const { data: settings } = await supabase.from("settings").select("*").eq("id", 1).single();
-        const maxPerDay = settings?.max_bookings_per_day || 10;
-        const allSlots = settings?.available_time_slots || ['18:00','18:30','19:00','19:30','20:00','20:30','21:00'];
 
-        // 2. Get bookings for this date
-        const { data: bookings } = await supabase
+      const dateString = getLocalDateString(date);
+      let maxPerDay = 10;
+      let allSlots = DEFAULT_SLOTS;
+
+      // Fetch with 5s hard timeout using a cancel flag
+      const timer = setTimeout(() => {
+        setAvailability({ bookedTimes: [], isFullyBooked: false, allTimeSlots: DEFAULT_SLOTS });
+        setLoading(false);
+      }, 5000);
+
+      try {
+        // 1. Try to get settings (non-blocking if fails)
+        try {
+          const { data: settings } = await supabase.from("settings").select("*").eq("id", 1).single();
+          if (settings) {
+            maxPerDay = settings.max_bookings_per_day || 10;
+            allSlots = settings.available_time_slots || DEFAULT_SLOTS;
+          }
+        } catch {
+          // settings table missing or network slow → use defaults silently
+        }
+
+        // 2. Get existing bookings for this date
+        const { data: bookings, error: bookErr } = await supabase
           .from("bookings")
           .select("time")
           .eq("date", dateString)
           .neq("status", "cancelled");
 
-        const bookedTimes = (bookings || []).map((b) => b.time);
-        
+        clearTimeout(timer);
+
+        const bookedTimes = (bookings || []).map((b: { time: string }) => b.time);
+
         setAvailability({
           bookedTimes,
           isFullyBooked: bookedTimes.length >= maxPerDay,
           allTimeSlots: allSlots,
         });
-      } catch (err: any) {
-        setError(err.message);
+
+        if (bookErr) {
+          setError("تعذّر جلب الأوقات المحجوزة، نعرض الأوقات الافتراضية.");
+        }
+      } catch {
+        clearTimeout(timer);
+        setAvailability({ bookedTimes: [], isFullyBooked: false, allTimeSlots: DEFAULT_SLOTS });
+        setError("تعذّر الاتصال بالخادم، نعرض الأوقات الافتراضية.");
       } finally {
         setLoading(false);
       }
     };
     
     fetchAvailability();
-    setTime(""); // reset time
+    setTime("");
   }, [date]);
+
 
   const handleSubmit = async () => {
     if (!date || !time || !service || !formData.name || !formData.phone) {
