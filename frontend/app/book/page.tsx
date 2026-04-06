@@ -40,45 +40,71 @@ export default function BookAppointment() {
   useEffect(() => {
     if (!date) return;
     
+    const DEFAULT_SLOTS = ['18:00','18:30','19:00','19:30','20:00','20:30','21:00','21:30','22:00','22:30'];
+
     const fetchAvailability = async () => {
       setLoading(true);
       setError("");
-      try {
-        const dateString = getLocalDateString(date);
-        
-        // 1. Get settings
-        const { data: settings } = await supabase.from("settings").select("*").eq("id", 1).single();
-        const maxPerDay = settings?.max_bookings_per_day || 10;
-        const allSlots = settings?.available_time_slots || ['18:00','18:30','19:00','19:30','20:00','20:30','21:00'];
 
-        // 2. Get bookings for this date
-        const { data: bookings } = await supabase
+      const dateString = getLocalDateString(date);
+      let maxPerDay = 10;
+      let allSlots = DEFAULT_SLOTS;
+
+      // Fetch with 5s hard timeout using a cancel flag
+      const timer = setTimeout(() => {
+        setAvailability({ bookedTimes: [], isFullyBooked: false, allTimeSlots: DEFAULT_SLOTS });
+        setLoading(false);
+      }, 5000);
+
+      try {
+        // 1. Try to get settings (non-blocking if fails)
+        try {
+          const { data: settings } = await supabase.from("settings").select("*").eq("id", 1).single();
+          if (settings) {
+            maxPerDay = settings.max_bookings_per_day || 10;
+            allSlots = settings.available_time_slots || DEFAULT_SLOTS;
+          }
+        } catch {
+          // settings table missing or network slow → use defaults silently
+        }
+
+        // 2. Get existing bookings for this date
+        const { data: bookings, error: bookErr } = await supabase
           .from("bookings")
           .select("time")
           .eq("date", dateString)
           .neq("status", "cancelled");
 
-        const bookedTimes = (bookings || []).map((b) => b.time);
-        
+        clearTimeout(timer);
+
+        const bookedTimes = (bookings || []).map((b: { time: string }) => b.time);
+
         setAvailability({
           bookedTimes,
           isFullyBooked: bookedTimes.length >= maxPerDay,
           allTimeSlots: allSlots,
         });
-      } catch (err: any) {
-        setError(err.message);
+
+        if (bookErr) {
+          setError("تعذّر جلب الأوقات المحجوزة، نعرض الأوقات الافتراضية.");
+        }
+      } catch {
+        clearTimeout(timer);
+        setAvailability({ bookedTimes: [], isFullyBooked: false, allTimeSlots: DEFAULT_SLOTS });
+        setError("تعذّر الاتصال بالخادم، نعرض الأوقات الافتراضية.");
       } finally {
         setLoading(false);
       }
     };
     
     fetchAvailability();
-    setTime(""); // reset time
+    setTime("");
   }, [date]);
+
 
   const handleSubmit = async () => {
     if (!date || !time || !service || !formData.name || !formData.phone) {
-      setError("Please fill all required fields.");
+      setError("من فضلك أكمل جميع الحقول المطلوبة.");
       return;
     }
 
@@ -86,25 +112,38 @@ export default function BookAppointment() {
     setError("");
 
     try {
-      // For this demo, we bypass Auth if user is not logged in and just create a record directly
-      // In a real app, we would require login first.
-      
       const { data: { user } } = await supabase.auth.getUser();
-      let userId = user?.id;
-      
-      // If no valid session, we can just insert anonymously if RLS allows (or prompt login)
-      // Since our RLS currently requires auth, let's assume the user is logged in, 
-      // or we handle auth error.
+      const userId = user?.id;
       
       if (!userId) {
-        throw new Error("You must be logged in to book. Please sign in first.");
+        throw new Error("يجب تسجيل الدخول أولاً للحجز.");
+      }
+
+      const dateString = getLocalDateString(date);
+
+      // ✅ Re-check slot availability right before insert (prevents race condition)
+      const { data: slotCheck } = await supabase
+        .from("bookings")
+        .select("id")
+        .eq("date", dateString)
+        .eq("time", time)
+        .neq("status", "cancelled")
+        .limit(1);
+
+      if (slotCheck && slotCheck.length > 0) {
+        setTime(""); // reset the selected time
+        // refresh availability
+        const { data: bookings } = await supabase
+          .from("bookings").select("time").eq("date", dateString).neq("status", "cancelled");
+        setAvailability(prev => prev ? { ...prev, bookedTimes: (bookings || []).map(b => b.time) } : prev);
+        throw new Error("⚠️ عذراً، هذا الوقت تم حجزه للتو. يُرجى اختيار وقت آخر.");
       }
 
       const { error: insertError } = await supabase.from("bookings").insert({
         user_id: userId,
         name: formData.name,
         phone: formData.phone,
-        date: getLocalDateString(date),
+        date: dateString,
         time,
         service,
         notes: formData.notes,
@@ -120,6 +159,7 @@ export default function BookAppointment() {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-50 pt-32 pb-24">

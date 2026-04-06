@@ -31,26 +31,40 @@ export default function ProfileSettings() {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const timeoutId = setTimeout(() => {
         window.location.href = "/auth/login";
-        return;
-      }
-      setUser(user);
+      }, 8000);
 
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-        
-      if (profileData) {
-        setProfile(profileData);
-        setName(profileData.name || "");
-        setPhone(profileData.phone || "");
-        setAvatarUrl(profileData.avatar_url || null);
+      try {
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (authError || !authData?.user) {
+          clearTimeout(timeoutId);
+          window.location.href = "/auth/login";
+          return;
+        }
+        const u = authData.user;
+        setUser(u);
+
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", u.id)
+          .single();
+          
+        if (profileData) {
+          setProfile(profileData);
+          setName(profileData.name || "");
+          setPhone(profileData.phone || "");
+          setAvatarUrl(profileData.avatar_url || null);
+        }
+        clearTimeout(timeoutId);
+      } catch (err) {
+        clearTimeout(timeoutId);
+        console.error(err);
+        window.location.href = "/auth/login";
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchProfile();
