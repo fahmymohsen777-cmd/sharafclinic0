@@ -78,7 +78,7 @@ export default function BookAppointment() {
 
   const handleSubmit = async () => {
     if (!date || !time || !service || !formData.name || !formData.phone) {
-      setError("Please fill all required fields.");
+      setError("من فضلك أكمل جميع الحقول المطلوبة.");
       return;
     }
 
@@ -86,25 +86,38 @@ export default function BookAppointment() {
     setError("");
 
     try {
-      // For this demo, we bypass Auth if user is not logged in and just create a record directly
-      // In a real app, we would require login first.
-      
       const { data: { user } } = await supabase.auth.getUser();
-      let userId = user?.id;
-      
-      // If no valid session, we can just insert anonymously if RLS allows (or prompt login)
-      // Since our RLS currently requires auth, let's assume the user is logged in, 
-      // or we handle auth error.
+      const userId = user?.id;
       
       if (!userId) {
-        throw new Error("You must be logged in to book. Please sign in first.");
+        throw new Error("يجب تسجيل الدخول أولاً للحجز.");
+      }
+
+      const dateString = getLocalDateString(date);
+
+      // ✅ Re-check slot availability right before insert (prevents race condition)
+      const { data: slotCheck } = await supabase
+        .from("bookings")
+        .select("id")
+        .eq("date", dateString)
+        .eq("time", time)
+        .neq("status", "cancelled")
+        .limit(1);
+
+      if (slotCheck && slotCheck.length > 0) {
+        setTime(""); // reset the selected time
+        // refresh availability
+        const { data: bookings } = await supabase
+          .from("bookings").select("time").eq("date", dateString).neq("status", "cancelled");
+        setAvailability(prev => prev ? { ...prev, bookedTimes: (bookings || []).map(b => b.time) } : prev);
+        throw new Error("⚠️ عذراً، هذا الوقت تم حجزه للتو. يُرجى اختيار وقت آخر.");
       }
 
       const { error: insertError } = await supabase.from("bookings").insert({
         user_id: userId,
         name: formData.name,
         phone: formData.phone,
-        date: getLocalDateString(date),
+        date: dateString,
         time,
         service,
         notes: formData.notes,
@@ -120,6 +133,7 @@ export default function BookAppointment() {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-50 pt-32 pb-24">
