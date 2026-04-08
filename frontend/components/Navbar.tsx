@@ -38,10 +38,10 @@ export default function Navbar() {
     };
     document.addEventListener("mousedown", handleClickOutside);
 
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (data?.user) {
-        setUser(data.user);
-        const { data: profile } = await supabase.from("profiles").select("role, name").eq("id", data.user.id).single();
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data?.session?.user) {
+        setUser(data.session.user);
+        const { data: profile } = await supabase.from("profiles").select("role, name").eq("id", data.session.user.id).single();
         if (profile) {
           setRole(profile.role);
           setUserName(profile.name);
@@ -71,8 +71,21 @@ export default function Navbar() {
   }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
     setDropdownOpen(false);
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // حتى لو فشل signOut، نمسح الـ session يدوياً
+    }
+    // مسح كل بيانات الـ session من المتصفح
+    if (typeof window !== 'undefined') {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-')) localStorage.removeItem(key);
+      });
+    }
+    setUser(null);
+    setRole(null);
+    setUserName(null);
     window.location.href = "/auth/login";
   };
 
