@@ -188,7 +188,7 @@ export default function BookAppointment() {
       const { error: insertError } = await supabase.from("bookings").insert({
         user_id: userId,
         name: formData.name,
-        phone: formData.phone,
+        phone: `+20${formData.phone}`,
         date: dateString,
         time,
         service,
@@ -361,13 +361,18 @@ export default function BookAppointment() {
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-2">رقم الهاتف</label>
-                      <input 
-                        type="tel" 
-                        value={formData.phone}
-                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all"
-                        placeholder="01000000000"
-                      />
+                      <div className="flex items-center gap-0">
+                        <span className="flex items-center justify-center bg-slate-100 border border-slate-200 border-l-0 rounded-r-xl px-4 py-3 text-slate-600 font-bold text-sm select-none" dir="ltr">+20</span>
+                        <input 
+                          type="tel" 
+                          value={formData.phone}
+                          onChange={(e) => setFormData({...formData, phone: e.target.value.replace(/[^0-9]/g, '')})}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-l-xl px-4 py-3 text-slate-900 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all"
+                          placeholder="1000000000"
+                          dir="ltr"
+                          maxLength={10}
+                        />
+                      </div>
                     </div>
                   </div>
                   <div>
@@ -423,7 +428,7 @@ export default function BookAppointment() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">رقم الهاتف</span>
-                    <span className="text-slate-900 font-bold text-right">{formData.phone}</span>
+                    <span className="text-slate-900 font-bold text-right" dir="ltr">+20{formData.phone}</span>
                   </div>
                 </div>
 

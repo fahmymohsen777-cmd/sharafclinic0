@@ -6,6 +6,16 @@ import { Calendar, Clock, Activity, FileText, CheckCircle2, XCircle, LogOut, Set
 import Image from "next/image";
 import Link from "next/link";
 
+// تحويل الوقت من 24 ساعة إلى 12 ساعة
+const formatTime12 = (t: string) => {
+  const [hStr, mStr] = t.split(':');
+  let h = parseInt(hStr, 10);
+  const ampm = h >= 12 ? 'م' : 'ص';
+  if (h > 12) h -= 12;
+  if (h === 0) h = 12;
+  return `${h}:${mStr} ${ampm}`;
+};
+
 export default function UserDashboard() {
   const [profile, setProfile] = useState<any>(null);
   const [bookings, setBookings] = useState<any[]>([]);
@@ -162,7 +172,7 @@ export default function UserDashboard() {
                     <div>
                       <p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Calendar className="w-3 h-3" /> التاريخ والوقت</p>
                       <p className="font-bold text-slate-900">{new Date(booking.date).toLocaleDateString()}</p>
-                      <p className="text-sm text-primary font-bold">{booking.time}</p>
+                      <p className="text-sm text-primary font-bold">{formatTime12(booking.time)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Activity className="w-3 h-3" /> الخدمة</p>
