@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, ChevronRight, CheckCircle2, AlertCircle } from "lucide-react";
@@ -16,11 +16,11 @@ export default function BookAppointment() {
   const [formData, setFormData] = useState({ name: "", phone: "", notes: "" });
   
   // Helper to fix Javascript timezone issues (keeps the date exactly as selected in local time)
-  const getLocalDateString = (d: Date) => {
+  const getLocalDateString = useCallback((d: Date) => {
     const local = new Date(d);
     local.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     return local.toISOString().split("T")[0];
-  };
+  }, []);
   
   const [availability, setAvailability] = useState<{
     bookedTimes: string[];
@@ -99,7 +99,53 @@ export default function BookAppointment() {
     
     fetchAvailability();
     setTime("");
-  }, [date]);
+  }, [date, getLocalDateString]);
+
+  // 🔥 Supabase Realtime: تحديث المواعيد لحظياً لكل المستخدمين
+  useEffect(() => {
+    if (!date) return;
+
+    const dateString = getLocalDateString(date);
+
+    const channel = supabase
+      .channel(`bookings-realtime-${dateString}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bookings' },
+        async (payload: any) => {
+          // عند أي تغيير (حجز جديد / إلغاء / تعديل)، نعيد جلب المواعيد المحجوزة
+          const changedDate = payload.new?.date || payload.old?.date;
+          if (changedDate === dateString) {
+            const { data: bookings } = await supabase
+              .from("bookings")
+              .select("time")
+              .eq("date", dateString)
+              .neq("status", "cancelled");
+
+            const bookedTimes = (bookings || []).map((b: { time: string }) => b.time);
+
+            setAvailability(prev => prev ? {
+              ...prev,
+              bookedTimes,
+              isFullyBooked: bookedTimes.length >= (prev.allTimeSlots?.length || 10),
+            } : prev);
+
+            // لو اليوزر كان مختار ميعاد وحد تاني حجزه، نشيل الاختيار
+            setTime(currentTime => {
+              if (bookedTimes.includes(currentTime)) {
+                return "";
+              }
+              return currentTime;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [date, getLocalDateString]);
 
 
   const handleSubmit = async () => {
@@ -154,7 +200,14 @@ export default function BookAppointment() {
       setSuccess(true);
       setStep(4);
     } catch (err: any) {
-      setError(err.message);
+      // Handle unique constraint violation (another user booked same slot)
+      if (err?.code === '23505') {
+        setError("⚠️ عذراً، هذا الموعد تم حجزه للتو بواسطة شخص آخر. يُرجى اختيار وقت آخر.");
+        setTime("");
+        setStep(1);
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
